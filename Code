@@ -1,0 +1,147 @@
+#include <iostream>
+#include <stdexcept>
+
+using std::runtime_error, std::cin, std::cout, std::cerr, std::string, std::exception, std::endl;
+
+void error( string s ) {
+    throw runtime_error{ s };
+}
+
+class Token {
+
+public:
+    char kind; // Die Tokensymbole
+    double value; // Bei Zahlen: der Wert
+
+    void print() const {
+        if( kind == '9' ) cout << value << endl;
+        else cout << kind << endl;
+    }
+
+    Token( const char& ch ) : kind{ch}, value{0.0} {}   // Konstruktor, erstelle ein Token aus einem char:
+
+    Token( const double& d ) : kind{'9'}, value{d} {}   // Konstruktor, erstelle ein Zahl-Token aus einem double:
+
+    Token( ) : Token{0.0} {}                            // Standardkonstruktor, erstelle "das Standardtoken" ohne Vorgabe:
+};
+
+class Token_stream {
+
+public:
+    Token get( ); // Token aus std::cin erzeugen
+
+    void putback( const Token& t ) { // Trick: ein Token puffern
+        if( full ) error( "Token buffer is already full" );
+        buffer = t; full = true;
+    }
+
+private:
+    bool full; // Ist ein Token im Puffer?
+    Token buffer; // Trick: Platz, um ein Token zu puffern
+};
+
+Token Token_stream::get( )
+{
+    if( full ) { full = false; return buffer; }
+    char ch{}; cin >> ch;
+    switch( ch )
+    {
+    case ';': // Ende eines Rechenausdrucks
+
+    case 'q': // Programmende
+
+    case '(': case ')': case '+': case '-': case '*': case '/':
+        return Token{ ch }; // jedes Zeichen ist sein eigenes Token
+
+    case '0': case '1': case '2': case '3': case '4':
+    case '5': case '6': case '7': case '8': case '9': // Zahl als Token
+    {
+        cin.putback( ch ); // std::cin hat auch einen Puffer
+        double val{ }; cin >> val;
+        return Token{ val };
+    }
+
+    default: error( "Token invalid" );
+    }
+}
+
+double primary( Token_stream& ts ) // Zahlen und Klammern behandeln
+{
+    Token t3{ ts.get( ) };
+    switch( t3.kind )
+    {
+    case '9': return t3.value;
+    case '(': {
+        double d3{ expression( ts ) };
+        if( ts.get().kind != ')' ) error( "keine rechte Klammer" );
+        return d3;
+    }
+    default: error( "kein Primary" );
+    }
+}
+
+double term( Token_stream& ts ) // "mal" und "geteilt durch" behandeln
+{
+    double d2{ primary( ts ) };
+    Token t2{};
+    while( true )
+    {
+        t2 = ts.get();
+        switch( t2.kind )
+        {
+        case '*': d2 *= primary( ts );
+            break;
+        case '/': {
+            double divisor{ primary( ts ) };
+            if( divisor == 0 ) error( "Division durch 0" );
+            d2 /= divisor;
+            break;
+        }
+        default: ts.putback( t2 );
+            return d2;
+        }
+    }
+}
+
+double expression( Token_stream& ts ) // "plus" und "minus" behandeln
+{
+    double d1{ term( ts ) };
+    Token t1{};
+    while( true )
+    {
+        t1 = ts.get();
+        switch( t1.kind )
+        {
+        case '+': d1 += term( ts );
+            break;
+        case '-': d1 -= term( ts );
+            break;
+        default: ts.putback( t1 );
+            return d1;
+        }
+    }
+}
+
+
+
+
+int main() try {
+
+    Token tok{};
+    Token_stream ts{}; // Standardkonstruktor?!
+    while( cin )
+    {
+        cout << "> "; // Prompt
+        tok = ts.get();
+        if( tok.kind == ';' ) continue;
+        if( tok.kind == 'q' ) break;
+        ts.putback( tok );
+        cout << "= " << expression( ts ) << endl;
+    }
+
+
+    return 0;
+}
+catch( exception& e){cerr << e.what(); return -2; }
+catch (...) {cerr << "Unbekannter Fehler"; return -1;}
+
